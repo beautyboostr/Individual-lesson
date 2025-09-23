@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import google.generativeai as genai
 import os
 
@@ -17,6 +18,24 @@ except (AttributeError, KeyError):
         st.stop()
 
 # --- 2. HELPER FUNCTIONS ---
+
+@st.cache_data
+def load_data():
+    """Loads the recommendation data from CSV files."""
+    try:
+        recommendations_df = pd.read_csv('recommendations_final.csv')
+        problem_rec_df = pd.read_csv('problem_recommendations_final.csv')
+        return recommendations_df, problem_rec_df
+    except FileNotFoundError as e:
+        st.error(f"Error: A required data file was not found: `{e.filename}`.", icon="🚨")
+        return None, None
+
+def find_problem_recommendation(user_problem_text, recommendations_df):
+    """Scans user text for keywords to find the correct client audience."""
+    if not user_problem_text or not isinstance(user_problem_text, str): return None
+    for _, row in recommendations_df.iterrows():
+        if row['problem_keyword'].lower() in user_problem_text.lower(): return row
+    return None
 
 def generate_content(prompt):
     """A single function to send any prompt to the Gemini API."""
@@ -39,9 +58,16 @@ def set_stage(stage):
 
 # --- 3. MAIN APPLICATION UI ---
 
-# STAGE 0: Welcome & Goal Setting
+st.image("logo.png", width=100)
+
+load_data_result = load_data()
+if load_data_result:
+    recommendations_df, problem_rec_df = load_data_result
+else:
+    st.stop()
+
+# STAGE 0: Initial Profile Form
 if st.session_state.stage == 0:
-    st.image("logo.png", width=100)
     st.title("Welcome to the Lesson Creation Bot!")
     st.info("This bot acts as your personal instructional designer, guiding you from a high-level idea to a complete, ready-to-film lesson plan.", icon="✍️")
     
@@ -189,16 +215,19 @@ if st.session_state.stage == 3:
                 * **Introduction (1-2 Videos):** (e.g., Technique Intro, Skin Prep)
                 * **Core Exercises (5-10 Videos):** (Convert each "Critical Step" into a short video with a 2-word title)
                 * **Conclusion (1-3 Videos):** (e.g., Finishing Move, Aftercare Tip, Common Mistake)
-            5.  **How to Use These Recommendations:** (Include the empowering, flexible guide text)
+            5.  **How to Use These Recommendations:** (Include the empowering, flexible guide text: "Think of this as your creative blueprint, not a mandatory script...")
 
             Format the entire output using Markdown.
             """
 
         lesson_plan = generate_content(prompt)
         if lesson_plan:
-            st.markdown(lesson_plan)
+            # ** NEW: EDITABLE TEXT AREA AND COPY INSTRUCTIONS **
+            st.info("You can now edit your lesson plan below and copy the text for your records.", icon="📋")
+            st.text_area("Your Editable Lesson Plan", value=lesson_plan, height=600)
 
     if st.button("Create Another Lesson", use_container_width=True):
         set_stage(0)
         st.session_state.form_data = {}
         st.rerun()
+
