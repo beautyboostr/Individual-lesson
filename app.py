@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import google.generativeai as genai
 import os
 
@@ -17,6 +18,24 @@ except (AttributeError, KeyError):
         st.stop()
 
 # --- 2. HELPER FUNCTIONS ---
+
+@st.cache_data
+def load_data():
+    """Loads the recommendation data from CSV files."""
+    try:
+        recommendations_df = pd.read_csv('recommendations_final.csv')
+        problem_rec_df = pd.read_csv('problem_recommendations_final.csv')
+        return recommendations_df, problem_rec_df
+    except FileNotFoundError as e:
+        st.error(f"Error: A required data file was not found: `{e.filename}`.", icon="🚨")
+        return None, None
+
+def find_problem_recommendation(user_problem_text, recommendations_df):
+    """Scans user text for keywords to find the correct client audience."""
+    if not user_problem_text or not isinstance(user_problem_text, str): return None
+    for _, row in recommendations_df.iterrows():
+        if row['problem_keyword'].lower() in user_problem_text.lower(): return row
+    return None
 
 def generate_content(prompt):
     """A single function to send any prompt to the Gemini API."""
@@ -141,64 +160,60 @@ if st.session_state.stage == 3:
         if data.get('lesson_type') == 'Educational':
             prompt = f"""
             You are an expert instructional designer creating a plan for an EDUCATIONAL video lesson.
-
-            **Base Information from Program Blueprint:**
-            ---
-            {data.get('blueprint')}
-            ---
-
+            **Base Information from Program Blueprint:**\n---\n{data.get('blueprint')}\n---
             **Specific Lesson Methodology:**
             * Core Question to Answer: {data['methodology']['core_question']}
             * Key Teaching Points: {data['methodology']['teaching_points']}
             * Core Analogy: {data['methodology']['analogy']}
             * Actionable Tip: {data['methodology']['actionable_tip']}
-
             **Your Task:**
-            Generate a complete lesson structure with the following sections:
-            1.  **Lesson Title:** (A compelling, 2-3 word title)
-            2.  **Lesson Description:** (A concise, 3-4 line description for an app)
-            3.  **Targeted Concepts:** (List the key concepts based on the provided info)
-            4.  **Detailed Video Script Outline (7-12 minutes):**
-                * **Part 1: The Hook (0-30s):** Based on the "Core Question."
-                * **Part 2: The "What & Why" (1-2m):** Introduce the topic and "Key Teaching Points."
-                * **Part 3: The Main Content (5-8m):** Explain the "Key Teaching Points," using the "Core Analogy."
-                * **Part 4: The Summary & Call to Action (1m):** Recap and present the "Actionable Tip."
-            
+            Generate a complete lesson structure with these sections:
+            1. **Lesson Title:** (A compelling, 2-3 word title)
+            2. **Lesson Description:** (A concise, 3-4 line description for an app)
+            3. **Targeted Concepts:** (List the key concepts based on the provided info)
+            4. **Detailed Video Script Outline (7-12 minutes):**
+                * Part 1: The Hook (0-30s)
+                * Part 2: The "What & Why" (1-2m)
+                * Part 3: The Main Content (5-8m)
+                * Part 4: The Summary & Call to Action (1m)
             Format the entire output using Markdown.
             """
         else: # Hands-on
             prompt = f"""
             You are an expert instructional designer creating a plan for a HANDS-ON tutorial.
-
-            **Base Information from Program Blueprint:**
-            ---
-            {data.get('blueprint')}
-            ---
-
+            **Base Information from Program Blueprint:**\n---\n{data.get('blueprint')}\n---
             **Specific Lesson Methodology:**
             * Specific Outcome: {data['methodology']['outcome']}
             * Critical Steps: {data['methodology']['steps']}
             * Common Mistake to Avoid: {data['methodology']['mistake']}
             * Required Tools: {data['methodology']['tools']}
-
             **Your Task:**
-            Generate a complete lesson structure with the following sections:
-            1.  **Lesson Title:** (A powerful, 2-3 word title)
-            2.  **Lesson Description:** (A concise, 3-4 line description for an app)
-            3.  **Targeted Zones:** (List the relevant physical zones)
-            4.  **Short Video Series Content Plan (7-15 videos, 30-60s each):**
-                * **Introduction (1-2 Videos):** (e.g., Technique Intro, Skin Prep)
-                * **Core Exercises (5-10 Videos):** (Convert each "Critical Step" into a short video with a 2-word title)
-                * **Conclusion (1-3 Videos):** (e.g., Finishing Move, Aftercare Tip, Common Mistake)
-            5.  **How to Use These Recommendations:** (Include the empowering, flexible guide text: "Think of this as your creative blueprint, not a mandatory script...")
-
+            Generate a complete lesson structure with these sections:
+            1. **Lesson Title:** (A powerful, 2-3 word title)
+            2. **Lesson Description:** (A concise, 3-4 line description for an app)
+            3. **Targeted Zones:** (List the relevant physical zones)
+            4. **Short Video Series Content Plan (7-15 videos, 30-60s each):**
+                * Introduction (1-2 Videos)
+                * Core Exercises (5-10 Videos)
+                * Conclusion (1-3 Videos)
             Format the entire output using Markdown.
             """
 
         lesson_plan = generate_content(prompt)
         if lesson_plan:
             st.info("You can now edit your lesson plan below and copy the text for your records.", icon="📋")
-            st.text_area("Your Editable Lesson Plan", value=lesson_plan, height=600)
+            st.text_area("Your Editable Lesson Plan", value=lesson_plan, height=500)
+
+            # ** NEW: NON-EDITABLE GUIDE FOR HANDS-ON TUTORIALS **
+            if data.get('lesson_type') == 'Hands-on':
+                st.info(
+                    """
+                    **How to Use These Recommendations:**
+
+                    Think of this as your creative blueprint, not a mandatory script! Feel free to adjust the video lengths, add your own personal touch, and tailor the language to your specific audience. The key is to maintain a positive, encouraging, and easy-to-follow approach. Remember to emphasize the importance of gentle pressure and consistent practice for optimal results. You can also add text overlays, music, and other visual elements to enhance the learning experience. The goal is to empower your students to achieve a radiant, healthy complexion through this simple yet effective technique.
+                    """,
+                    icon="💡"
+                )
 
     if st.button("Create Another Lesson", use_container_width=True):
         set_stage(0)
