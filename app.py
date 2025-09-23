@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 import google.generativeai as genai
 import os
 
@@ -18,24 +17,6 @@ except (AttributeError, KeyError):
         st.stop()
 
 # --- 2. HELPER FUNCTIONS ---
-
-@st.cache_data
-def load_data():
-    """Loads the recommendation data from CSV files."""
-    try:
-        recommendations_df = pd.read_csv('recommendations_final.csv')
-        problem_rec_df = pd.read_csv('problem_recommendations_final.csv')
-        return recommendations_df, problem_rec_df
-    except FileNotFoundError as e:
-        st.error(f"Error: A required data file was not found: `{e.filename}`.", icon="🚨")
-        return None, None
-
-def find_problem_recommendation(user_problem_text, recommendations_df):
-    """Scans user text for keywords to find the correct client audience."""
-    if not user_problem_text or not isinstance(user_problem_text, str): return None
-    for _, row in recommendations_df.iterrows():
-        if row['problem_keyword'].lower() in user_problem_text.lower(): return row
-    return None
 
 def generate_content(prompt):
     """A single function to send any prompt to the Gemini API."""
@@ -59,12 +40,6 @@ def set_stage(stage):
 # --- 3. MAIN APPLICATION UI ---
 
 st.image("logo.png", width=100)
-
-load_data_result = load_data()
-if load_data_result:
-    recommendations_df, problem_rec_df = load_data_result
-else:
-    st.stop()
 
 # STAGE 0: Initial Profile Form
 if st.session_state.stage == 0:
@@ -222,7 +197,6 @@ if st.session_state.stage == 3:
 
         lesson_plan = generate_content(prompt)
         if lesson_plan:
-            # ** NEW: EDITABLE TEXT AREA AND COPY INSTRUCTIONS **
             st.info("You can now edit your lesson plan below and copy the text for your records.", icon="📋")
             st.text_area("Your Editable Lesson Plan", value=lesson_plan, height=600)
 
